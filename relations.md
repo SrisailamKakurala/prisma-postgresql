@@ -141,4 +141,124 @@ Returns:
 
 ---
 
-Let me know if you want examples for real-world use like **auth, comments, categories**, or help writing these in `schema.prisma`.
+Here’s a detailed breakdown of how **multiple relations between the same two models** work in **Prisma with PostgreSQL**, covering everything from schema interpretation to how it maps under the hood in the database:
+
+---
+
+## 📘 Full Notes: How Multiple Relations Work in Prisma & PostgreSQL
+
+---
+
+### ⚙️ 1. **Prisma Schema Overview**
+
+```prisma
+model User {
+  id             Int     @id @default(autoincrement())
+  name           String
+
+  authoredPosts  Post[]  @relation("AuthorRelation")
+  reviewedPosts  Post[]  @relation("ReviewerRelation")
+}
+
+model Post {
+  id           Int     @id @default(autoincrement())
+  title        String
+  authorId     Int
+  reviewerId   Int
+
+  author       User    @relation("AuthorRelation", fields: [authorId], references: [id])
+  reviewer     User    @relation("ReviewerRelation", fields: [reviewerId], references: [id])
+}
+```
+
+---
+
+### 🧠 2. **What Prisma Is Doing Under the Hood**
+
+Prisma maps your models to actual **PostgreSQL tables**, like:
+
+#### `User` table
+| id (PK) | name |
+|---------|------|
+| 1       | Sri  |
+
+#### `Post` table
+| id (PK) | title | authorId (FK) | reviewerId (FK) |
+|---------|-------|---------------|-----------------|
+| 1       | Post1 | 1             | 2               |
+
+#### ✅ Important Concepts:
+- Prisma uses **relation names** (like `"AuthorRelation"`, `"ReviewerRelation"`) to track internal mappings **between fields and models**.
+- These names **do not affect** the actual PostgreSQL schema. They're just **internal identifiers for Prisma Client** generation.
+
+---
+
+### 🧩 3. **What Happens in PostgreSQL?**
+
+Prisma will generate a `Post` table with **two foreign keys**:
+
+```sql
+CREATE TABLE "Post" (
+  "id" SERIAL PRIMARY KEY,
+  "title" TEXT NOT NULL,
+  "authorId" INTEGER NOT NULL,
+  "reviewerId" INTEGER NOT NULL,
+  FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY ("reviewerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+```
+
+---
+
+### 📦 4. **How Prisma Client Uses This**
+
+When you run a query like:
+
+```ts
+const post = await prisma.post.findMany({
+  include: {
+    author: true,
+    reviewer: true
+  }
+});
+```
+
+The Prisma Client knows:
+- `author` → connected via `authorId` → `AuthorRelation`
+- `reviewer` → connected via `reviewerId` → `ReviewerRelation`
+
+Thanks to the relation names in schema, Prisma **resolves which field to populate**.
+
+---
+
+### 🧪 5. **How It Helps in Real World**
+
+Imagine querying like this:
+
+```ts
+const users = await prisma.user.findMany({
+  include: {
+    authoredPosts: true,
+    reviewedPosts: true
+  }
+});
+```
+
+Even though both point to the `Post` model, Prisma **differentiates them using relation names** and maps them properly using foreign keys.
+
+---
+
+### 🧠 Summary
+
+| Concept                  | Explanation |
+|--------------------------|-------------|
+| `@relation("Name")`      | Prisma’s internal tag to distinguish multiple links between same models |
+| `fields`                 | Foreign key fields in the current model (like `authorId`) |
+| `references`             | Primary key in the related model (usually `id`) |
+| PostgreSQL behavior      | Creates real foreign key constraints between tables |
+| Prisma behavior          | Uses `@relation` to generate correct TypeScript types and queries |
+| No extra table needed    | Since it's not a many-to-many — Prisma just uses foreign keys |
+
+---
+
+Let me know if you want the same breakdown for many-to-many with join tables or embedded documents!

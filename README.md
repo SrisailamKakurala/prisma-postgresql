@@ -4,6 +4,8 @@ api with prisma as a orm and postgres as a database!
 
 [prismaClient Constructor options](./constructor-options.md)
 
-[migrations](./migration)
+[migrations](./migration.md)
 
-[relations](./relations)
+[relations](./relations.md)
+
+[filtering and searching](./filters.md)
